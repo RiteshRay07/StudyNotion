@@ -6,12 +6,12 @@ const otpGenerator = require("otp-generator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const mailSender = require("../Utils/mailSender");
-const {passwordUpdated} = require("../Mail/templates/passwordUpdate")
+const { passwordUpdated } = require("../Mail/templates/passwordUpdate");
+const { registerSuccess } = require("../Mail/templates/registerSuccess");
 require("dotenv").config();
 
-
 //*******************************************************************************
-//                                  SignUp Function  
+//                                  SignUp Function
 //*******************************************************************************
 
 //===================== Signup
@@ -67,9 +67,7 @@ exports.signUp = async (req, res) => {
     }
 
     //find most recent OTP stored for the user
-    const response = await OTP.find({ email })
-      .sort({ createdAt: -1 })
-      .limit(1);
+    const response = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1);
     console.log("OTP response-> ", response);
 
     //validate OTp
@@ -92,7 +90,7 @@ exports.signUp = async (req, res) => {
 
     // Create the User
     let approved = "";
-    approved==="Instructor" ? (approved=false):(approved=true);
+    approved === "Instructor" ? (approved = false) : (approved = true);
     //entry create in Database
 
     const profileDetails = await Profile.create({
@@ -108,12 +106,24 @@ exports.signUp = async (req, res) => {
       email,
       contactNumber,
       password: hashedPassword,
-      accountType:accountType,
-      approved:approved,
+      accountType: accountType,
+      approved: approved,
       AdditionalDetails: profileDetails._id,
       image: `https://api.dicebear.com/5.x/initials/svg?seed=${firstName} ${lastName}`,
     });
     //We can Send a mail to user -> Register Successfully
+    try {
+      const registerMail = await mailSender(
+        email,
+        "Welcome Email",
+        registerSuccess(email, firstName)
+      );
+      console.log("Register mail send successfully");
+    } catch (error) {
+      console.error("error to send register mail", error);
+      console.log("error to send register mail");
+    }
+
     //return res
     return res.status(200).json({
       success: true,
@@ -130,7 +140,7 @@ exports.signUp = async (req, res) => {
 };
 
 //*******************************************************************************
-//                                  Login Function  
+//                                  Login Function
 //*******************************************************************************
 
 //==================Login
@@ -148,7 +158,7 @@ exports.login = async (req, res) => {
     }
 
     //check user is exist or not
-    const user =await User.findOne({ email }).populate("AdditionalDetails");
+    const user = await User.findOne({ email }).populate("AdditionalDetails");
 
     if (!user) {
       return res.status(401).json({
@@ -203,9 +213,8 @@ exports.login = async (req, res) => {
   }
 };
 
-
 //*******************************************************************************
-//                                  Send OTP Function  
+//                                  Send OTP Function
 //*******************************************************************************
 
 //============ Send OTP
@@ -242,7 +251,7 @@ exports.sendOTP = async (req, res) => {
         lowerCaseAlphabets: false,
         specialChars: false,
       });
-      result = await OTP.findOne({otp:otp})
+      result = await OTP.findOne({ otp: otp });
     }
 
     const otpPayload = { email, otp };
@@ -250,13 +259,13 @@ exports.sendOTP = async (req, res) => {
     //create an entry for OTP
     const otpBody = await OTP.create(otpPayload);
 
-    console.log("OTP Body", otpBody)
+    console.log("OTP Body", otpBody);
 
     //return response successful
     res.status(200).json({
       success: true,
       message: "OTP sent successfully",
-      otp
+      otp,
     });
   } catch (error) {
     console.log(
@@ -270,7 +279,7 @@ exports.sendOTP = async (req, res) => {
   }
 };
 //*******************************************************************************
-//                                  Change Password Function  
+//                                  Change Password Function
 //*******************************************************************************
 
 //============Change Password
@@ -279,30 +288,30 @@ exports.sendOTP = async (req, res) => {
 exports.changePassword = async (req, res) => {
   try {
     // Get user data from req.user
-    const userDetails = await User.findById(req.user.id)
+    const userDetails = await User.findById(req.user.id);
 
     // Get old password, new password, and confirm new password from req.body
-    const { oldPassword, newPassword } = req.body
+    const { oldPassword, newPassword } = req.body;
 
     // Validate old password
     const isPasswordMatch = await bcrypt.compare(
       oldPassword,
       userDetails.password
-    )
+    );
     if (!isPasswordMatch) {
       // If old password does not match, return a 401 (Unauthorized) error
       return res
         .status(401)
-        .json({ success: false, message: "The password is incorrect" })
+        .json({ success: false, message: "The password is incorrect" });
     }
 
     // Update password
-    const encryptedPassword = await bcrypt.hash(newPassword, 10)
+    const encryptedPassword = await bcrypt.hash(newPassword, 10);
     const updatedUserDetails = await User.findByIdAndUpdate(
       req.user.id,
       { password: encryptedPassword },
       { new: true }
-    )
+    );
 
     // Send notification email
     try {
@@ -313,29 +322,29 @@ exports.changePassword = async (req, res) => {
           updatedUserDetails.email,
           `Password updated successfully for ${updatedUserDetails.firstName} ${updatedUserDetails.lastName}`
         )
-      )
-      console.log("Email sent successfully:", emailResponse.response)
+      );
+      console.log("Email sent successfully:", emailResponse.response);
     } catch (error) {
       // If there's an error sending the email, log the error and return a 500 (Internal Server Error) error
-      console.error("Error occurred while sending email:", error)
+      console.error("Error occurred while sending email:", error);
       return res.status(500).json({
         success: false,
         message: "Error occurred while sending email",
         error: error.message,
-      })
+      });
     }
 
     // Return success response
     return res
       .status(200)
-      .json({ success: true, message: "Password updated successfully" })
+      .json({ success: true, message: "Password updated successfully" });
   } catch (error) {
     // If there's an error updating the password, log the error and return a 500 (Internal Server Error) error
-    console.error("Error occurred while updating password:", error)
+    console.error("Error occurred while updating password:", error);
     return res.status(500).json({
       success: false,
       message: "Error occurred while updating password",
       error: error.message,
-    })
+    });
   }
-}
+};
